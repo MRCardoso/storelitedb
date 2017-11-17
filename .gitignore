@@ -1,1 +1,4 @@
 storelitedb.json
+bower-publish.sh
+repo-create.sh
+repo-remove.sh
