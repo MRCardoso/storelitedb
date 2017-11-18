@@ -1,0 +1,33 @@
+{
+	"name": "storelitedb",
+	"description": "client site database storage",
+	"main": [
+			"dist/js/storelitedb.js"
+		],
+	"keywords": [
+		"websql",
+		"sqlite",
+		"ionic-app",
+		"local-database"
+	],
+	"authors": [
+		"MRCardoso <marlonrcardoso@yahoo.com.br>"
+	],
+	"license": "MIT",
+	"homepage": "",
+	"dependencies": {
+		"logding-helper": "latest"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/MRCardoso/storelitedb.git"
+	},
+	"ignore": [
+		"**/.*",
+		"node_modules",
+		"bower_components",
+		"src",
+		"test",
+		"tests"
+	]
+}

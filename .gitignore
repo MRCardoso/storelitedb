@@ -1,4 +1,6 @@
 storelitedb.json
+node_modules
+bower_components
 bower-publish.sh
 repo-create.sh
 repo-remove.sh
