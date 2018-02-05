@@ -4,8 +4,15 @@ angular.module('storelitedb')
         var db = null;
         var queryString = '';
         var prepareArray = [];
-
-        var config = angular.extend(DBConfig, (DBUtil.getObject('db.config') || {}));
+        /**
+         * The default configurations of the database(eg: name,size)
+         * @var {object} config
+         * @var {string} [config.dbName=custom.db] The name of the database
+         * @var {int} [config.dbSize=(5*1024*1024)] The size of the database
+         * @var {bool} [config.showLogs=true] The enable disable the logs of the command sql
+         * @var {string} [config.storageType=sqlite] the storage type(only sqlite implemented here)
+         */
+        var config = DBConfig;
 
         /**
          * execute the query command sent in first argument
@@ -31,6 +38,16 @@ angular.module('storelitedb')
             });
         }
         
+        /**
+         * Set the custom configuration for the databse
+         * @param {Object} value The object with db config
+         * @param {string} value.dbName The name of the database
+         * @param {int} value.dbSize The size of the database
+        */
+        this.setConnectionOptions = function (value) {
+            config = angular.extend(DBConfig, ( value || {} ));
+        };
+
         /**
          * Start the connection in the databse(WebSql or Sqlite)
          * @return Database
