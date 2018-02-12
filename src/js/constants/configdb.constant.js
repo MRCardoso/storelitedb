@@ -3,5 +3,6 @@ angular.module('storelitedb')
     showLogs: true,
     storageType: 'sqlite',
     dbName: 'custom.db',
-    dbSize: (5*1024*1024)
+    dbSize: (5*1024*1024),
+    enableMigrations: false
 });
