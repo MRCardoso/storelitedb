@@ -2,6 +2,7 @@ angular.module('storelitedb')
 .service('Database', ['$q', 'DBConfig', 'DBUtil', 'Log', 'Loading', function($q, DBConfig, DBUtil, Log, Loading)
     {
         var db = null;
+        var $this = this;
         var queryString = '';
         var prepareArray = [];
         /**
@@ -96,7 +97,7 @@ angular.module('storelitedb')
                 var sql = "SELECT sql FROM sqlite_master WHERE tbl_name = '{tableName}' AND type = 'table'";
                 sql = sql.replace('{tableName}', schema.tableName);
     
-                this.query(sql).then(function(r){
+                $this.query(sql).then(function(r){
                     if( r.rows.length  == 0 ){
                         Log.info('creating.db', schema, config.showLogs);
                         if (config.enableMigrations) schemas.push(migrationsTable());
@@ -148,7 +149,7 @@ angular.module('storelitedb')
                     .replace('{notExist}', notExists)
                     .replace('{fields}', fieldList.field);
 
-            return this.query(sql, []);
+            return $this.query(sql, []);
         };
 
         /**
@@ -157,7 +158,7 @@ angular.module('storelitedb')
          */
         this.drop = function(tableName, notExists){
             notExists = (angular.isUndefined(notExists) ? 'IF EXISTS ' : '');
-            return this.query("DROP TABLE "+notExists+tableName, []);
+            return $this.query("DROP TABLE "+notExists+tableName, []);
         };
 
         /**
@@ -175,7 +176,7 @@ angular.module('storelitedb')
                     .replace('{fields}', fieldList.field.join(','))
                     .replace('{values}', fieldList.field.map(function(row){ return '?'}) );
             
-            return this.query(sql, fieldList.values);
+            return $this.query(sql, fieldList.values);
         };
 
         /**
@@ -195,7 +196,7 @@ angular.module('storelitedb')
                     .replace('{fields}', fieldList.field.join(','))
                     .replace('{condition}', conditions.rules.join(" AND ") );
             
-            return this.query(sql, fieldList.values.concat(conditions.values));
+            return $this.query(sql, fieldList.values.concat(conditions.values));
         };
 
         /**
@@ -211,7 +212,7 @@ angular.module('storelitedb')
             if( angular.isDefined(condition) ){
                 sql += " WHERE "+(fieldList.rules.join(" AND "))+";";
             }
-            return this.query(sql, fieldList.values);
+            return $this.query(sql, fieldList.values);
         };
         
         /**
@@ -257,7 +258,7 @@ angular.module('storelitedb')
                     return reject('no query found');
                 }
                 
-                this.query(queryString, prepareArray).then(function(r){
+                $this.query(queryString, prepareArray).then(function(r){
                     queryString = null;
                     prepareArray = [];
                     var data = [];
@@ -280,7 +281,7 @@ angular.module('storelitedb')
                 if(queryString == ''){
                     return reject('no query found');
                 }
-                this.query(queryString+" LIMIT 1", prepareArray).then(function(r){
+                $this.query(queryString+" LIMIT 1", prepareArray).then(function(r){
                     queryString = null;
                     prepareArray = [];
                     if( r.rows.length == 0 )
