@@ -27,6 +27,27 @@ angular.module('storelitedb')
             };
         }
 
+        function getOrCreateMigration(instance) {
+            return $q(function(resolve, reject) {
+                $this
+                .query("SELECT sql FROM sqlite_master WHERE tbl_name = 'migrations' AND type = 'table'")
+                .then(function(rw) {
+                    if (rw.rows.length == 0){
+                        var schema = migrationsTable();
+                        
+                        Log.info('creating.migrations.db', schema, config.showLog);
+                        
+                        instance.create(schema.tableName, schema.columns).then(resolve, function (e) {
+                            Log.DBException(e, schema, config.showLog);
+                            reject(e);
+                        })
+                    } else{
+                        resolve(null);
+                    }
+                })
+            })
+        }
+
         /**
          * execute the query command sent in first argument
          * @param {string} sql the string with the query to be executed
@@ -116,8 +137,14 @@ angular.module('storelitedb')
                         })
                     }
                     else{
-                        Log.info('loading.db', schema, config.showLogs);
-                        return defer.resolve(instance);
+                        var p2 = (config.enableMigrations ? getOrCreateMigration(instance) : $q.resolve() );
+
+                        p2.then(function() {
+                            Log.info('loading.db', schema, config.showLogs);
+                            return defer.resolve(instance);
+                        }, function() {
+                            return defer.reject("Cannot was possible create the migrations table");
+                        });
                     }
                 }, function(e){
                     Log.DBException(e, sql);
