@@ -3,9 +3,8 @@
  * 
  * Copyright 2017 Marlon R Cardoso <marlonrcardoso@yahoo.com.br>
  */
+var STORELITE_DB_CONNECTION = null;
 (function(){
     'use strict';
-    angular.module('storelitedb',[])
-    .run(["$rootScope", function($rootScope){
-    }]);
+    angular.module('storelitedb',[]).run(["$rootScope", function($rootScope){}]);
 }());

@@ -3,11 +3,10 @@
  * 
  * Copyright 2017 Marlon R Cardoso <marlonrcardoso@yahoo.com.br>
  */
+var STORELITE_DB_CONNECTION = null;
 (function(){
     'use strict';
-    angular.module('storelitedb',[])
-    .run(["$rootScope", function($rootScope){
-    }]);
+    angular.module('storelitedb',[]).run(["$rootScope", function($rootScope){}]);
 }());
 angular.module('storelitedb')
 .constant("DBConfig", {
@@ -20,10 +19,19 @@ angular.module('storelitedb')
 angular.module('storelitedb')
 .service('Database', ['$q', 'DBConfig', 'DBUtil', 'Log', 'Loading', function($q, DBConfig, DBUtil, Log, Loading)
     {
-        var db = null;
+        var db = STORELITE_DB_CONNECTION;
         var $this = this;
         var queryString = '';
         var prepareArray = [];
+        var migrationSchema = {
+            tableName: "migrations",
+            columns: {
+                id: "INTEGER PRIMARY KEY AUTOINCREMENT",
+                path: "TEXT NOT NULL",
+                status: "INT NOT NULL", // 0 pending, 1 runned
+                created: "INT NOT NULL"
+            }
+        };
         /**
          * The default configurations of the database(eg: name,size)
          * @var {object} config
@@ -34,63 +42,6 @@ angular.module('storelitedb')
          */
         var config = DBConfig;
 
-        function migrationsTable() {
-            return {
-                tableName: "migrations",
-                columns: {
-                    id: "INTEGER PRIMARY KEY AUTOINCREMENT",
-                    path: "TEXT NOT NULL",
-                    status: "INT NOT NULL", // 0 pending, 1 runned
-                    created: "INT NOT NULL"
-                }
-            };
-        }
-
-        function getOrCreateMigration(instance) {
-            return $q(function(resolve, reject) {
-                $this
-                .query("SELECT sql FROM sqlite_master WHERE tbl_name = 'migrations' AND type = 'table'")
-                .then(function(rw) {
-                    if (rw.rows.length == 0){
-                        var schema = migrationsTable();
-                        
-                        Log.info('creating.migrations.db', schema, config.showLog);
-                        
-                        instance.create(schema.tableName, schema.columns).then(resolve, function (e) {
-                            Log.DBException(e, schema, config.showLog);
-                            reject(e);
-                        })
-                    } else{
-                        resolve(null);
-                    }
-                })
-            })
-        }
-
-        /**
-         * execute the query command sent in first argument
-         * @param {string} sql the string with the query to be executed
-         * @param {array} attributes the array of argument to be prepare and replaced in '?' character of the sql
-         */
-        this.query = function (sql, attributes)
-        {
-            attributes = (attributes || []);
-            return $q(function(resolve, reject){
-                db.transaction(function (t){
-                    t.executeSql(sql, attributes, function (tx, r) {
-                        Log.success('Query: '+sql, [r, attributes], config.showLogs);
-                        return resolve(r);
-                    }, function (tx, e) {
-                        if( window.cordova ){
-                            window.plugins.toast.show("The query had an error", 'long', 'top');
-                        }
-                        Log.DBException(e, sql, attributes, config.showLogs);
-                        reject(e);
-                    });
-                });
-            });
-        }
-        
         /**
          * Set the custom configuration for the databse
          * @param {Object} value The object with db config
@@ -103,24 +54,60 @@ angular.module('storelitedb')
 
         /**
          * Start the connection in the databse(WebSql or Sqlite)
-         * @return Database
+         * @return Promise
          */
         this.connect = function()
         {
+            var defer = $q.defer();
             if( db == null )
             {
                 if( window.sqlitePlugin ){
-                    db = window.sqlitePlugin.openDatabase({name: config.dbName, location: 'default'});
-                    Log.info('sqlite.connection', db, config.showLogs);
+                    window.sqlitePlugin.openDatabase({ name: config.dbName, location: 'default' }, function (instance) {
+                        db = instance;
+                        STORELITE_DB_CONNECTION = instance;
+                        Log.info('sqlite.connection', db, config.showLogs);
+                        defer.resolve($this);
+                    }, function (e) {
+                        Log.DBException(e, '', null, config.showLog);
+                        defer.reject(e);
+                    });
                 } else{
                     db = window.openDatabase(config.dbName, "1.0", "Test Web SQL Database", config.dbSize);
+                    STORELITE_DB_CONNECTION = db;
                     Log.info('WebSql.connection', db, config.showLogs);
+                    defer.resolve($this);
                 }
             }
             else{
                 Log.info('cache.connection', db, config.showLogs);
+                defer.resolve($this);
             }
-            return this;
+            return defer.promise;
+        };
+
+        /**
+         * execute the query command sent in first argument
+         * @param {string} sql the string with the query to be executed
+         * @param {array} attributes the array of argument to be prepare and replaced in '?' character of the sql
+         */
+        this.query = function (sql, attributes) {
+            attributes = (attributes || []);
+            return $q(function (resolve, reject) {
+                $this.connect().then(function () {
+                    db.transaction(function (t) {
+                        t.executeSql(sql, attributes, function (tx, r) {
+                            Log.success('Query: ' + sql, [r, attributes], config.showLogs);
+                            return resolve(r);
+                        }, function (tx, e) {
+                            if (window.cordova) {
+                                window.plugins.toast.show("The query had an error", 'long', 'top');
+                            }
+                            Log.DBException(e, sql, attributes, config.showLogs);
+                            reject(e);
+                        });
+                    });
+                });
+            });
         };
 
         /**
@@ -129,45 +116,18 @@ angular.module('storelitedb')
          */
         this.initialize = function(schema)
         {
-            var schemas = [schema];
             var defer = $q.defer();
             if( db == null ){
                 Log.info('connect.db', undefined, config.showLogs);
-                var instance = this.connect();
-                var sql = "SELECT sql FROM sqlite_master WHERE tbl_name = '{tableName}' AND type = 'table'";
-                sql = sql.replace('{tableName}', schema.tableName);
-    
-                $this.query(sql).then(function(r){
-                    if( r.rows.length  == 0 ){
-                        Log.info('creating.db', schema, config.showLogs);
-                        if (config.enableMigrations) schemas.push(migrationsTable());
-                        var promises = [];
-                        angular.forEach(schemas, function(sc, i) {
-                            promises.push(instance.create(sc.tableName, sc.columns));
-                        });
-                        return $q.all(promises).then(function() {
-                            return defer.resolve(instance);
-                        }, function (e) {
-                            e = (e != null && !('length' in e)? [e] : e);
-                            angular.forEach(e, function(error,err) {
-                                Log.DBException(error, schema, schemas, config.showLog);
-                            })
-                            return defer.reject("Cannot was possible run the query");
-                        })
-                    }
-                    else{
-                        var p2 = (config.enableMigrations ? getOrCreateMigration(instance) : $q.resolve() );
 
-                        p2.then(function() {
-                            Log.info('loading.db', schema, config.showLogs);
-                            return defer.resolve(instance);
-                        }, function() {
-                            return defer.reject("Cannot was possible create the migrations table");
-                        });
-                    }
-                }, function(e){
-                    Log.DBException(e, sql);
-                    defer.reject(e);
+                $q.all([
+                    $this.connect(),
+                    (config.enableMigrations ? $this.findOrCreate(migrationSchema) : $q.resolve(null)),
+                    $this.findOrCreate(schema)
+                ]).then(function () {
+                    defer.resolve($this);
+                }, function () {
+                    defer.reject("it was not possible to stablish connection with local database");
                 });
             }
             else{
@@ -175,6 +135,38 @@ angular.module('storelitedb')
                 defer.resolve(db);
             }
             
+            return defer.promise;
+        };
+
+        /**
+         * Verify if the table of the schema already exists in the local DB
+         * if no exists creates the schema in the local DB
+         * @param {object} schema the schema to create or check
+         * @param {string} schema.tableName the name of table to be create
+         * @param {object} schema.columns the list of columns of the schema
+         */
+        this.findOrCreate = function(schema) {
+            var defer = $q.defer();
+            var sql = "SELECT sql FROM sqlite_master WHERE tbl_name = '" + schema.tableName + "' AND type = 'table'";
+
+            $this.query(sql).then(function (r) {
+                if (r.rows.length == 0) {
+                    Log.info('creating.db', schema, config.showLogs);
+                    $this.create(schema.tableName, schema.columns).then(function () {
+                        return defer.resolve(null);
+                    }, function (e) {
+                        Log.DBException(e, sql, schema, config.showLog);
+                        defer.reject(e);
+                    });
+                } else {
+                    Log.info('loading.db', schema, config.showLogs);
+                    return defer.resolve(null);
+                }
+            }, function (e) {
+                Log.DBException(e, sql, schema, config.showLog);
+                defer.reject(e);
+            });
+
             return defer.promise;
         };
 
