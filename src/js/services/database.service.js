@@ -51,7 +51,7 @@ angular.module('storelitedb')
                         defer.resolve($this);
                     }, function (e) {
                         Log.DBException(e, '', null, config.showLog);
-                        defer.reject(e);
+                        defer.reject("it was not possible to stablish connection with local database");
                     });
                 } else{
                     db = window.openDatabase(config.dbName, "1.0", "Test Web SQL Database", config.dbSize);
@@ -88,7 +88,7 @@ angular.module('storelitedb')
                             reject(e);
                         });
                     });
-                });
+                }, reject);
             });
         };
 
@@ -99,23 +99,14 @@ angular.module('storelitedb')
         this.initialize = function(schema)
         {
             var defer = $q.defer();
-            if( db == null ){
-                Log.info('connect.db', undefined, config.showLogs);
 
-                $q.all([
-                    $this.connect(),
-                    (config.enableMigrations ? $this.findOrCreate(migrationSchema) : $q.resolve(null)),
-                    $this.findOrCreate(schema)
-                ]).then(function () {
-                    defer.resolve($this);
-                }, function () {
-                    defer.reject("it was not possible to stablish connection with local database");
-                });
-            }
-            else{
-                Log.info('cached.db');
-                defer.resolve(db);
-            }
+            $this.connect().then(function() {
+                var pMigration = (config.enableMigrations ? $this.findOrCreate(migrationSchema) : $q.resolve(null));
+
+                pMigration.then(function () {
+                    $this.findOrCreate(schema).then(defer.resolve, defer.reject);
+                }, defer.reject);
+            }, defer.reject);
             
             return defer.promise;
         };
@@ -135,18 +126,18 @@ angular.module('storelitedb')
                 if (r.rows.length == 0) {
                     Log.info('creating.db', schema, config.showLogs);
                     $this.create(schema.tableName, schema.columns).then(function () {
-                        return defer.resolve(null);
+                        return defer.resolve($this);
                     }, function (e) {
                         Log.DBException(e, sql, schema, config.showLog);
-                        defer.reject(e);
+                        defer.reject("it was not possible create the " + schema.tableName);
                     });
                 } else {
                     Log.info('loading.db', schema, config.showLogs);
-                    return defer.resolve(null);
+                    return defer.resolve($this);
                 }
             }, function (e) {
                 Log.DBException(e, sql, schema, config.showLog);
-                defer.reject(e);
+                defer.reject("it was not possible find the schema " + schema.tableName);
             });
 
             return defer.promise;
