@@ -1,5 +1,4 @@
-angular.module('storelitedb')
-.service('Database', ['$q', 'DBConfig', 'DBUtil', 'Log', 'Loading', function($q, DBConfig, DBUtil, Log, Loading)
+angular.module('storelitedb').service('Database', ['$q', 'DBConfig', 'DBUtil', 'Log', function ($q, DBConfig, DBUtil, Log)
     {
         var db = STORELITE_DB_CONNECTION;
         var $this = this;
@@ -34,6 +33,10 @@ angular.module('storelitedb')
             config = angular.extend(DBConfig, ( value || {} ));
         };
 
+        this.getWebSqlConnection = function() {
+            return window.openDatabase(config.dbName, "1.0", "Test Web SQL Database", config.dbSize);
+        }
+
         /**
          * Start the connection in the databse(WebSql or Sqlite)
          * @return Promise
@@ -54,7 +57,7 @@ angular.module('storelitedb')
                         defer.reject("it was not possible to stablish connection with local database");
                     });
                 } else{
-                    db = window.openDatabase(config.dbName, "1.0", "Test Web SQL Database", config.dbSize);
+                    db = this.getWebSqlConnection();
                     STORELITE_DB_CONNECTION = db;
                     Log.info('WebSql.connection', db, config.showLogs);
                     defer.resolve($this);
